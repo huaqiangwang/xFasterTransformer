@@ -267,7 +267,8 @@ elif [[ "${numa_nodes}" -eq 4 ]] && [[ "${sockets_num}" -eq 4 ]]; then
 elif [ "${numa_nodes}" -eq 2 ]; then
     #SPR or hbm only or hbm cache Quad-mode or EMR non SNC-2 mode, Confirm that there are 2 DRAM memory nodes through "nuamctl -H"
     Info "Quad mode"
-    export OMP_NUM_THREADS=$((${cores_per_numa} / 2))
+    export OMP_NUM_THREADS=32
+    #export OMP_NUM_THREADS=$((${cores_per_numa} / 2))
     Info "OMP_NUM_THREADS: $((${cores_per_numa} / 2))"
     run_cmd="mpirun \
     -n 1 bash run.sh 0 0 ${OMP_NUM_THREADS} 0"
