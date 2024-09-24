@@ -214,6 +214,8 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
 # exe file
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
 
+add_subdirectory(microbench)
+
 add_subdirectory(src)
 add_subdirectory(examples/cpp)
 
