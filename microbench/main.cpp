@@ -7,6 +7,7 @@
 #include "benchbase.h"
 #include "vexp.h"
 #include "util.h"
+#include "perf.h"
 
 void print_components(std::vector<std::shared_ptr<BenchBase>> benches){
     std::cout << std::endl << "Component Benchmarks List" << std::endl;
@@ -38,7 +39,8 @@ void runBenchmarks(std::vector<std::shared_ptr<BenchBase>> &benches){
 }
 
 int main(int argc, char*argv[]){
-    std::vector<std::shared_ptr<BenchBase>> benchTests;
+    std::vector<std::shared_ptr<BenchBase>> benchTests;\
+    PerfEventResult result;
     registerBenchmarks(benchTests);
 
     std::cout << "xFT Component Micro Bench" << std::endl;
@@ -47,6 +49,23 @@ int main(int argc, char*argv[]){
     //uint64_t  ip = get_ip_after_this();
     //std::cout << "Current IP is 0x" <<std::hex << ip << std::dec << std::endl;
     //disassemble(ip, 1024);
+    PerfMon perfmon;
+    std::vector<std::string> events;
+    events.emplace_back("r81d0");
+    perfmon.Enable(events);
+    perfmon.Start();
     runBenchmarks(benchTests);
+    perfmon.GetCounters(&result);
+    std::cout << "1:" << result.value[0]<< std::endl;
+
+    runBenchmarks(benchTests);
+    perfmon.GetCounters(&result);
+    std::cout << "2:" << result.value[0]<< std::endl;
+
+    perfmon.Stop();
+    runBenchmarks(benchTests);
+    perfmon.GetCounters(&result);
+    std::cout << "3:" << result.value[0]<< std::endl;
+
     return 1;
 }

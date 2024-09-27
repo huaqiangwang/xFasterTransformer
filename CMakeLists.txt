@@ -101,7 +101,10 @@ include(GNUInstallDirs)
 
 set(DEPEND_LIST "onednn" "xdnn_lib")
 
+# fix issue introduced by conda gcc
 include_directories(${CMAKE_SOURCE_DIR}/3rdparty/)
+include_directories(/sdfasdfusr/include)
+
 include_directories(${CMAKE_SOURCE_DIR}/3rdparty/onednn/include)
 include_directories(${CMAKE_SOURCE_DIR}/3rdparty/onednn/build/include)
 include_directories(${CMAKE_SOURCE_DIR}/3rdparty/xdnn)
@@ -114,6 +117,8 @@ include_directories(${CMAKE_SOURCE_DIR}/src/utils)
 include_directories(${CMAKE_SOURCE_DIR}/src/models)
 include_directories(${CMAKE_SOURCE_DIR}/src/common)
 
+# fix issue introduced by conda gcc
+link_directories(/usr/lib64)
 link_directories(${CMAKE_SOURCE_DIR}/src/kernels)
 link_directories(${CMAKE_SOURCE_DIR}/3rdparty/onednn/build/src)
 link_directories(${CMAKE_SOURCE_DIR}/3rdparty/xdnn)
@@ -213,7 +218,7 @@ endif()
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
 # exe file
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
-
+link_directories(${CMAKE_SOURCE_DIR}/microbench/xed/lib)
 add_subdirectory(microbench)
 
 add_subdirectory(src)
