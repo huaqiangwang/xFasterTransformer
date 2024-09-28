@@ -49,8 +49,8 @@ public:
     void bench(){
         prepare_input();
         // How to get address of static function
-        auto vexp_ip = reinterpret_cast<uint64_t>(BertUtil::vexp);
-        disassemble(vexp_ip, 256);
+        //auto vexp_ip = reinterpret_cast<uint64_t>(BertUtil::vexp);
+        //disassemble(vexp_ip, 256);
 
         pin_cpu(0, maincpu_);
         for(auto l=0;l<loopWarmup_;l++)

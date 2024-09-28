@@ -5,6 +5,8 @@
 #include <string>
 #include <cstdint>
 #include <unordered_map>
+#include <map>
+#include <memory>
 
 #include <sys/ioctl.h>
 #include <sys/syscall.h>
@@ -16,6 +18,16 @@
 #ifndef DEPENDENCY_PERF_H
 #define DEPENDENCY_PERF_H
 
+
+struct PMUInfo {
+    struct PMU{
+        std::string name;
+        int type;
+    };
+    std::vector<int> cpumask;
+    std::vector<std::shared_ptr<PMU>>devs;
+};
+
 /* -----------------------------------------------
  * Perf Interface
  */
@@ -26,13 +38,20 @@ typedef struct
     uint64_t time_enabled;
     uint64_t time_running;
     uint64_t value[MAX_PERF_EVENT_HANDLERS];
-} PerfEventResult;
+} GroupEventResult;
+typedef struct
+{
+    uint64_t value;
+    uint64_t time_enabled;
+    uint64_t time_running;
+} NonGroupEventResult;
 
 class PerfMon {
 public:
-    PerfMon(): grpfd_(-1) {
+    PerfMon():grpfds_(), nongrpfds_(), pmu_(){
         getPMUList();
     }
+
     ~PerfMon(){
         Stop();
         Disable();
@@ -42,17 +61,18 @@ public:
     void Disable();
     int Start() const;
     void Stop() const;
-    bool GetCounters(PerfEventResult* result);
+    bool GetCounters();
 private:
     inline uint64_t getStamp();
     void getPMUList();
+    bool getEventTypeConfig(const std::string& event, std::string& dev, uint64_t& config);
 
-    long grpfd_;
-    std::vector<long> fds_;
-    // { "uncore_imc_": {"event": ["uncore_imc_0", "uncore_imc_1", ...]; "cpumask": ["0"]},
-    // ... }
-    std::unordered_map<std::string,
-            std::unordered_map<std::string,
-                    std::vector<std::string>>> pmulist_;
+    std::vector<int> grpfds_;
+    std::shared_ptr<GroupEventResult> grpresult_;
+
+    std::vector<int> nongrpfds_;
+    std::vector<std::shared_ptr<NonGroupEventResult>> nongrpresult_;
+    std::unordered_map<std::string, std::shared_ptr<PMUInfo>> pmu_;
 };
+
 #endif //DEPENDENCY_PERF_H

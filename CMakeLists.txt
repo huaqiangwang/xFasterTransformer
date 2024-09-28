@@ -101,10 +101,7 @@ include(GNUInstallDirs)
 
 set(DEPEND_LIST "onednn" "xdnn_lib")
 
-# fix issue introduced by conda gcc
 include_directories(${CMAKE_SOURCE_DIR}/3rdparty/)
-include_directories(/sdfasdfusr/include)
-
 include_directories(${CMAKE_SOURCE_DIR}/3rdparty/onednn/include)
 include_directories(${CMAKE_SOURCE_DIR}/3rdparty/onednn/build/include)
 include_directories(${CMAKE_SOURCE_DIR}/3rdparty/xdnn)
@@ -117,12 +114,21 @@ include_directories(${CMAKE_SOURCE_DIR}/src/utils)
 include_directories(${CMAKE_SOURCE_DIR}/src/models)
 include_directories(${CMAKE_SOURCE_DIR}/src/common)
 
-# fix issue introduced by conda gcc
-link_directories(/usr/lib64)
 link_directories(${CMAKE_SOURCE_DIR}/src/kernels)
 link_directories(${CMAKE_SOURCE_DIR}/3rdparty/onednn/build/src)
 link_directories(${CMAKE_SOURCE_DIR}/3rdparty/xdnn)
 link_directories(${CMAKE_SOURCE_DIR}/3rdparty/mkl/lib)
+
+message(STATUS "----------------------")
+message(STATUS ${CONDA_PREFIX})
+# fix issue introduced by conda gcc
+if(DEFINED ENV{CONDA_PREFIX})
+    set(CONDA_INCLUDE_DIR "$ENV{CONDA_PREFIX}/include")
+    message(STATUS "----------------------")
+    message(STATUS ${CONDA_INCLUDE_DIR})
+    include_directories(${CONDA_INCLUDE_DIR})
+    link_directories(/usr/lib64)
+endif()
 
 if(WITH_GPU)
     include("cmake/gpudnn.cmake")

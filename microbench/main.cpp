@@ -39,8 +39,7 @@ void runBenchmarks(std::vector<std::shared_ptr<BenchBase>> &benches){
 }
 
 int main(int argc, char*argv[]){
-    std::vector<std::shared_ptr<BenchBase>> benchTests;\
-    PerfEventResult result;
+    std::vector<std::shared_ptr<BenchBase>> benchTests;
     registerBenchmarks(benchTests);
 
     std::cout << "xFT Component Micro Bench" << std::endl;
@@ -51,21 +50,22 @@ int main(int argc, char*argv[]){
     //disassemble(ip, 1024);
     PerfMon perfmon;
     std::vector<std::string> events;
-    events.emplace_back("r81d0");
+    //events.emplace_back("r81d0");
+    //events.emplace_back("r0102");
+    //events.emplace_back("r0103");
+
+    events.emplace_back("uncore_imc/rf04/");
     perfmon.Enable(events);
     perfmon.Start();
     runBenchmarks(benchTests);
-    perfmon.GetCounters(&result);
-    std::cout << "1:" << result.value[0]<< std::endl;
+    perfmon.GetCounters();
 
     runBenchmarks(benchTests);
-    perfmon.GetCounters(&result);
-    std::cout << "2:" << result.value[0]<< std::endl;
+    perfmon.GetCounters();
 
     perfmon.Stop();
     runBenchmarks(benchTests);
-    perfmon.GetCounters(&result);
-    std::cout << "3:" << result.value[0]<< std::endl;
+    perfmon.GetCounters();
 
     return 1;
 }
