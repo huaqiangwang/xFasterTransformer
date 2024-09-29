@@ -49,23 +49,27 @@ int main(int argc, char*argv[]){
     //std::cout << "Current IP is 0x" <<std::hex << ip << std::dec << std::endl;
     //disassemble(ip, 1024);
     PerfMon perfmon;
+    std::vector<uint64_t> counter(3);
     std::vector<std::string> events;
-    //events.emplace_back("r81d0");
-    //events.emplace_back("r0102");
-    //events.emplace_back("r0103");
+    events.emplace_back("r81d0");
+    events.emplace_back("r0102");
+    events.emplace_back("r0103");
 
-    events.emplace_back("uncore_imc/rf04/");
+    //events.emplace_back("uncore_imc/rf04/");
     perfmon.Enable(events);
+
     perfmon.Start();
     runBenchmarks(benchTests);
-    perfmon.GetCounters();
+    perfmon.GetCounters(counter);
+    std::cout << "Counter: " << counter[0] <<", "<< counter[1] <<", "<< counter[2] <<", "<< std::endl;
 
     runBenchmarks(benchTests);
-    perfmon.GetCounters();
-
+    perfmon.GetCounters(counter);
+    std::cout << "Counter: " << counter[0] <<", "<< counter[1] <<", "<< counter[2] <<", "<< std::endl;
     perfmon.Stop();
-    runBenchmarks(benchTests);
-    perfmon.GetCounters();
 
+    runBenchmarks(benchTests);
+    perfmon.GetCounters(counter);
+    std::cout << "Counter: " << counter[0] <<", "<< counter[1] <<", "<< counter[2] <<", "<< std::endl;
     return 1;
 }

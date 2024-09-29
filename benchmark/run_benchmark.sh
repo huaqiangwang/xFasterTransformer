@@ -346,9 +346,10 @@ elif ["${numa_nodes}" -eq 3]; then
     fi
 
     if [ "$sockets" -ge "2" ]; then
-        run_cmd="mpirun \
-        -n 1 bash run.sh 0 0 ${OMP_NUM_THREADS} 0: \
-        -n 1 bash run.sh 1 1 ${OMP_NUM_THREADS} 1"
+        run_cmd = "bach run.sh 0 0 ${OMP_NUM_THREADS} 0"
+        #run_cmd="mpirun \
+        #-n 1 bash run.sh 0 0 ${OMP_NUM_THREADS} 0: \
+        #-n 1 bash run.sh 1 1 ${OMP_NUM_THREADS} 1"
     fi
 
     if [ "$sockets" == "3" ]; then

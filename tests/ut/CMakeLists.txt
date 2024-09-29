@@ -74,7 +74,9 @@ foreach(src ${sources})
         if(NOT WITH_TIMELINE)
             continue()
         endif()
-        add_executable(timeline_test ${src})
+        add_executable(timeline_test
+                ${src}
+                ${SRC_DIR}/utils/perf.cpp)
     elseif(${executable} STREQUAL "repetition_penalty_test")
         add_executable(repetition_penalty_test ${src} ${SRC_DIR}/searchers/search_utils.cpp)
     else()

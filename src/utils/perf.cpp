@@ -13,26 +13,27 @@
 #include <sys/stat.h>
 #include <regex>
 
+/*
 uint64_t PerfMon::getStamp() {
     auto now = std::chrono::high_resolution_clock::now();
     // TODO: Try to verify if time_since_epoch() is an action need to run later.
     auto timestamp = now.time_since_epoch().count();
     return timestamp;
-}
+}*/
 
 
 /* return the group id, 0 for error
- TODO: Currently only support RAW_EVENT, need to add support for other types of events
+ TODO: Currently only support RAW_EVENT,UNCORE_IMC, need to add support for other types of events
  */
-bool PerfMon::Enable(std::vector<std::string>& events) {
+void PerfMon::Enable(std::vector<std::string>& events) {
     struct perf_event_attr pe = {};
     unsigned int type;
-    long fd = 0;
+    int fd = 0;
     int cpu = -1;
     int pid = -1;
 
     long grpfd_ = -1;
-    for (auto event: events) {
+    for (auto & event: events) {
         std::string devStr;
         uint64_t config;
         if (!getEventTypeConfig(event, devStr, config)){
@@ -60,7 +61,6 @@ bool PerfMon::Enable(std::vector<std::string>& events) {
                 std::cerr << "Error opening leader for event " << event << std::endl;
                 //how to get reason for error?
                 std::cerr << strerror(errno) << std::endl;
-                return false;
             }
             grpfds_.push_back(fd);
             if (grpfd_ == -1) {
@@ -96,9 +96,11 @@ bool PerfMon::Enable(std::vector<std::string>& events) {
             std::cerr << "Unsupported event type: " << event << std::endl;
         }
     }
-    if (grpfd_ != -1)
-        ioctl(grpfd_, PERF_EVENT_IOC_RESET, 0);
-    return true;
+
+    if (!grpfds_.empty())
+        ioctl(grpfds_[0], PERF_EVENT_IOC_RESET, 0);
+    for (auto nongrpfd: nongrpfds_)
+        ioctl(nongrpfd, PERF_EVENT_IOC_RESET, 0);
 }
 
 void PerfMon::Disable() {
@@ -140,20 +142,23 @@ void PerfMon::Stop() const {
     }
 }
 
-bool PerfMon::GetCounters() {
+bool PerfMon::GetCounters(std::vector<uint64_t> & counters) {
+    int i = 0;
     if(!grpfds_.empty()){
         auto ret = read(grpfds_[0], grpresult_.get(), sizeof(uint64_t)*(3+grpfds_.size()));
         if (ret == 0) {
             std::cerr << "Error reading counters, error: " << ret << std::endl;
         }
+        for (auto j = 0; j < grpfds_.size(); j++)
+            counters[i++] = grpresult_->value[j];
     }
-    for (auto i = 0; i < nongrpfds_.size(); i++){
-        auto fd = nongrpfds_[i];
-        auto ret = read(fd, nongrpresult_[i].get(), sizeof(uint64_t)*3);
+    for (auto j = 0; j < nongrpfds_.size(); j++){
+        auto fd = nongrpfds_[j];
+        auto ret = read(fd, nongrpresult_[j].get(), sizeof(uint64_t)*3);
         if (ret == 0) {
             std::cerr << "Error reading counters, error: " << ret << std::endl;
         }
-        std::cout << "value" << nongrpresult_[i]->value << std::endl;
+        counters[i++] = nongrpresult_[j]->value;
     }
     return true;
 }
@@ -227,7 +232,7 @@ void PerfMon::getPMUList() {
     }
 }
 
-bool PerfMon::getEventTypeConfig(const std::string &event, std::string &dev, uint64_t &config) {
+bool PerfMon::getEventTypeConfig(const std::string& event, std::string& dev, uint64_t& config) {
     // Raw CPU event(type 4), starting with 'r'
     if (!event.empty() && event.front() == 'r') {
         config = std::stoul(event.substr(1), nullptr, 16);

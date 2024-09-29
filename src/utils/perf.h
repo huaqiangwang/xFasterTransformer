@@ -57,13 +57,13 @@ public:
         Disable();
     }
 
-    bool Enable(std::vector<std::string>& events);
+    void Enable(std::vector<std::string>& events);
     void Disable();
     int Start() const;
     void Stop() const;
-    bool GetCounters();
+    bool GetCounters(std::vector<uint64_t> & counters);
 private:
-    inline uint64_t getStamp();
+    //inline uint64_t getStamp();
     void getPMUList();
     bool getEventTypeConfig(const std::string& event, std::string& dev, uint64_t& config);
 
