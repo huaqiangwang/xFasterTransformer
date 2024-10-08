@@ -47,16 +47,20 @@ public:
 
     void release() {
         if (duringTime >= 0) return;
-        std::vector<uint64_t> counter(1);
+        std::map<std::string, float> counter;
         end = std::chrono::high_resolution_clock::now();
-        perfMon->GetCounters(counter);
+        perfMon->GetBWCounters(counter);
         perfMon->Stop();
         startTimestamp = std::chrono::duration_cast<std::chrono::microseconds>(start.time_since_epoch()).count();
         duringTime = std::chrono::duration<float, std::micro>(end - start).count();
 
+        // print all content of counter
+        for(const auto & pair : counter) {
+            traceEvent[pair.first.c_str()] = pair.second;
+        }
+
         traceEvent["ts"] = startTimestamp;
         traceEvent["dur"] = duringTime;
-        traceEvent["perf"] = counter[0];
 
         // std::lock_guard<std::mutex> lock(get_lock());
         TimeLine::getPool().push_back(traceEvent);
@@ -107,11 +111,9 @@ public:
     }
 
     static void init() {
-        std::vector<std::string> events;
         initWhitelist();
         pool.reserve(40 * 2000 * 20); // 40 layers * 2000 time * 20 promotes
-        events.emplace_back("r300");
-        perfMon->Enable(events);
+        perfMon->EnableBW();
     }
 
 private:

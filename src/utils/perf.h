@@ -18,6 +18,15 @@
 #ifndef DEPENDENCY_PERF_H
 #define DEPENDENCY_PERF_H
 
+enum CPUTYPE {
+    UNKNOWN=0,
+    SKL,
+    ICX,
+    SPR,
+    EMR,
+    GNR
+};
+
 
 struct PMUInfo {
     struct PMU{
@@ -48,8 +57,9 @@ typedef struct
 
 class PerfMon {
 public:
-    PerfMon():grpfds_(), nongrpfds_(), pmu_(){
+    PerfMon():grpfds_(), nongrpfds_(), pmu_(), cputype_(UNKNOWN), counters_at_start_(nullptr){
         getPMUList();
+        cputype_ = getCPUType();
     }
 
     ~PerfMon(){
@@ -59,13 +69,17 @@ public:
 
     void Enable(std::vector<std::string>& events);
     void Disable();
-    int Start() const;
+    int Start();
     void Stop() const;
-    bool GetCounters(std::vector<uint64_t> & counters);
+    bool GetCounters(std::vector<uint64_t> & counters) const;
+    //BW
+    void EnableBW();
+    void GetBWCounters(std::map<std::string, float> &counters);
 private:
     //inline uint64_t getStamp();
     void getPMUList();
     bool getEventTypeConfig(const std::string& event, std::string& dev, uint64_t& config);
+    CPUTYPE getCPUType();
 
     std::vector<int> grpfds_;
     std::shared_ptr<GroupEventResult> grpresult_;
@@ -73,6 +87,10 @@ private:
     std::vector<int> nongrpfds_;
     std::vector<std::shared_ptr<NonGroupEventResult>> nongrpresult_;
     std::unordered_map<std::string, std::shared_ptr<PMUInfo>> pmu_;
+
+    CPUTYPE cputype_;
+
+    std::shared_ptr<std::vector<uint64_t>> counters_at_start_;
 };
 
 #endif //DEPENDENCY_PERF_H

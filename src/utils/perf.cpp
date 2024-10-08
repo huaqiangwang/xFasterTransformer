@@ -79,9 +79,8 @@ void PerfMon::Enable(std::vector<std::string>& events) {
                 pe.read_format = (PERF_FORMAT_TOTAL_TIME_ENABLED | PERF_FORMAT_TOTAL_TIME_RUNNING);
                 pe.size = sizeof(struct perf_event_attr);
 
-                for (auto i = 0; i < imc->cpumask.size(); i++) {
-                    cpu = imc->cpumask[i];
-                    fd = syscall(__NR_perf_event_open, &pe, pid, cpu, -1, 0);
+                for(auto & c : imc->cpumask){
+                    fd = syscall(__NR_perf_event_open, &pe, pid, c, -1, 0);
                     if (fd == -1) {
                         std::cerr << "Error opening leader for event " << event << std::endl;
                         //how to get reason for error?
@@ -119,7 +118,7 @@ void PerfMon::Disable() {
     nongrpfds_.clear();
 }
 
-int PerfMon::Start() const {
+int PerfMon::Start() {
     if (!grpfds_.empty()){
         auto ret = ioctl(grpfds_[0], PERF_EVENT_IOC_ENABLE, PERF_EVENT_IOC_ENABLE);
         if (ret == -1) std::cerr << "PERF_EVENT_IOC_ENABLE failed, error: " << ret << std::endl;
@@ -128,6 +127,11 @@ int PerfMon::Start() const {
         auto ret = ioctl(fd, PERF_EVENT_IOC_ENABLE, 0);
         if (ret == -1) std::cerr << "PERF_EVENT_IOC_ENABLE failed, error: " << ret << std::endl;
     }
+    if(counters_at_start_ == nullptr) {
+        counters_at_start_ = std::make_shared<std::vector<uint64_t>>();
+        counters_at_start_->resize(grpfds_.size() + nongrpfds_.size());
+    }
+    GetCounters(*counters_at_start_);
     return 1;
 }
 
@@ -142,7 +146,7 @@ void PerfMon::Stop() const {
     }
 }
 
-bool PerfMon::GetCounters(std::vector<uint64_t> & counters) {
+bool PerfMon::GetCounters(std::vector<uint64_t> & counters) const {
     int i = 0;
     if(!grpfds_.empty()){
         auto ret = read(grpfds_[0], grpresult_.get(), sizeof(uint64_t)*(3+grpfds_.size()));
@@ -244,8 +248,88 @@ bool PerfMon::getEventTypeConfig(const std::string& event, std::string& dev, uin
     if (std::regex_match(event, pattern)) {
         auto match = std::sregex_iterator(event.begin(), event.end(), pattern);
         dev = match->str(1);
-        config = std::stoul(match->str(2), nullptr, 16);
+        config = std::stoul(match->str(2), nullptr, 10);
         return true;
     }
     return false;
+}
+
+std::map<int, CPUTYPE> CPUTypeMap = {
+        {85, SKL},
+        {106, ICX},
+        {143, SPR},
+        {207, EMR},
+        {173, GNR}
+};
+
+CPUTYPE PerfMon::getCPUType() {
+    std::regex pattern("model\\s*:.*\\s([0-9]+)");
+    std::ifstream cpuinfo("/proc/cpuinfo");
+    std::string line;
+    while(std::getline(cpuinfo, line)) {
+        if(std::regex_match(line, pattern)){
+            auto match = std::sregex_iterator (line.begin(), line.end(), pattern);
+            auto model = std::stoi(match->str(1));
+            if (CPUTypeMap.find(model) != CPUTypeMap.end())
+                return CPUTypeMap[model];
+            break;
+        }
+    }
+    return CPUTYPE::UNKNOWN;
+}
+
+void PerfMon::EnableBW() {
+    if (cputype_ == UNKNOWN) {
+        std::cerr << "Unknown CPU type!" << std::endl;
+        return;
+    }
+    if (pmu_.find("uncore_imc") == pmu_.end()) {
+        std::cerr << "IMC is not supported on this platform" << std::endl;
+        return;
+    }
+    auto pmudev = pmu_["uncore_imc"];
+
+    std::map<CPUTYPE, uint64_t> BWReadMap = {
+            {SKL, 0x304},
+            {ICX, 0xf04},
+            {SPR, 0xcf05}
+    };
+    std::map<CPUTYPE, uint64_t> BWWriteMap =  {
+            {SKL, 0xc04},
+            {ICX, 0x3004},
+            {SPR, 0xf005}
+            //{GNR,}
+    };
+    auto configRD = BWReadMap[cputype_];
+    auto configWR = BWWriteMap[cputype_];
+
+    std::string RDEvent = "uncore_imc/r" + std::to_string(configRD) + "/";
+    std::string WREvent = "uncore_imc/r" + std::to_string(configWR) + "/";
+    std::vector<std::string> events = {RDEvent, WREvent};
+    Enable(events);
+}
+
+void PerfMon::GetBWCounters(std::map<std::string, float> &counters) {
+    auto pmudev = pmu_[std::string("uncore_imc")];
+
+    uint32_t cnum = pmudev->devs.size() * pmudev->cpumask.size() * 2; // 2 for RD+WR
+    std::vector<uint64_t> buffer(cnum);
+    GetCounters(buffer);
+    for(auto i = 0;i<pmudev->cpumask.size();i++){
+        auto rdpos = i * pmudev->devs.size();
+        auto wrpos = pmudev->cpumask.size() * pmudev->devs.size() * (2+i);
+
+        auto cpu = pmudev->cpumask[i];
+        std::string rdname = "RD-cpu" + std::to_string(cpu) + "(MB)";
+        std::string wrname = "WR-cpu" + std::to_string(cpu) + "(MB)";
+
+        uint64_t rd = 0;
+        uint64_t wr = 0;
+        for(auto j = 0; j < pmudev->devs.size(); j++){
+            rd += (buffer[rdpos + j] - (*counters_at_start_)[rdpos + j]);
+            wr += buffer[wrpos + j] - (*counters_at_start_)[wrpos + j];
+        }
+        counters[rdname] = static_cast<float>(rd) * 64 / 1024 / 1024;
+        counters[wrname] = static_cast<float>(wr) * 64 / 1024 / 1024;
+    }
 }
