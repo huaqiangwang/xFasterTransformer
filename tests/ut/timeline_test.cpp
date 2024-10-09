@@ -128,6 +128,7 @@ TEST_F(TimeLineFixture, timelineevent) {
     ASSERT_TRUE(evts->HavingTag("1st Token"));
     ASSERT_TRUE(evts->HavingTag("Next Token"));
     ASSERT_TRUE(evts->HavingTag("dumpFile"));
+    TimeLine::deinit();
 }
 
 TEST_F(TimeLineFixture, whitelistOne) {
@@ -142,6 +143,7 @@ TEST_F(TimeLineFixture, whitelistOne) {
     ASSERT_FALSE(evts->HavingTag("1st Token"));
     ASSERT_FALSE(evts->HavingTag("Next Token"));
     ASSERT_FALSE(evts->HavingTag("dumpFile"));
+    TimeLine::deinit();
 }
 
 TEST_F(TimeLineFixture, whitelistTwo) {
@@ -156,6 +158,8 @@ TEST_F(TimeLineFixture, whitelistTwo) {
     ASSERT_TRUE(evts->HavingTag("1st Token"));
     ASSERT_TRUE(evts->HavingTag("Next Token"));
     ASSERT_FALSE(evts->HavingTag("dumpFile"));
+    TimeLine::deinit();
+
 }
 
 int main(int argc, char **argv) {

@@ -71,6 +71,7 @@ void PerfMon::Enable(std::vector<std::string>& events, bool monitor_single_event
         } else if (devStr == "uncore_imc") {
             auto imc = pmu_[devStr];
             pid = -1;
+            // fd map: socket0imc0, socket1imc0, socket0imc1, socket1imc2...
             for (auto dev : imc->devs) {
                 pe.type = dev->type;
                 pe.config = config;
@@ -285,25 +286,31 @@ void PerfMon::EnableBW(bool monitor_single_dimm) {
         std::cerr << "IMC is not supported on this platform" << std::endl;
         return;
     }
-    //auto pmudev = pmu_["uncore_imc"];
 
-    std::map<CPUTYPE, uint64_t> BWReadMap = {
-            {SKL, 0x304},
-            {ICX, 0xf04},
-            {SPR, 0xcf05}
+    std::map<CPUTYPE, std::vector<uint64_t>> BWReadMap = {
+            {SKL, {0x304}},
+            {ICX, {0xf04}},
+            {SPR, {0xcf05}},
+            {GNR,{0xcf05, 0xcf06}}
     };
-    std::map<CPUTYPE, uint64_t> BWWriteMap =  {
-            {SKL, 0xc04},
-            {ICX, 0x3004},
-            {SPR, 0xf005}
-            //{GNR,}
+    std::map<CPUTYPE, std::vector<uint64_t>> BWWriteMap = {
+        {SKL, {0xc04}},
+        {ICX, {0x3004}},
+        {SPR, {0xf005}},
+        {GNR, {0xf005, 0xf006}}
     };
     auto configRD = BWReadMap[cputype_];
     auto configWR = BWWriteMap[cputype_];
 
-    std::string RDEvent = "uncore_imc/r" + std::to_string(configRD) + "/";
-    std::string WREvent = "uncore_imc/r" + std::to_string(configWR) + "/";
-    std::vector<std::string> events = {RDEvent, WREvent};
+    std::vector<std::string> events;
+    for (auto i = 0; i < configRD.size(); i++) {
+        std::string RDEvent = "uncore_imc/r" + std::to_string(configRD[i]) + "/";
+        events.push_back(RDEvent);
+    }
+    for (auto i = 0; i < configWR.size(); i++) {
+        std::string WREvent = "uncore_imc/r" + std::to_string(configWR[i]) + "/";
+        events.push_back(WREvent);
+    }
     Enable(events, monitor_single_dimm);
 }
 
@@ -312,21 +319,24 @@ void PerfMon::GetBWCounters(std::map<std::string, float> &counters, std::vector<
 
     std::vector<uint64_t> buffer(counterNum_);
     GetCounters(buffer);
-    for(auto i = 0;i<pmudev->cpumask.size();i++){
+    std::map<std::string, float> result;
+
+    for(auto j = 0; j < counterNum_ / 2; j++) {
         auto rdpos = 0;
         auto wrpos = counterNum_ / 2; //2 due to Rd+Wr events
 
-        auto cpu = pmudev->cpumask[i];
-        std::string rdname = "RD-cpu" + std::to_string(cpu) + "(MB)";
-        std::string wrname = "WR-cpu" + std::to_string(cpu) + "(MB)";
-
-        uint64_t rd = 0;
-        uint64_t wr = 0;
-        for(auto j = 0; j < counterNum_ / 2; j++){
-            rd += buffer[rdpos + j] - (counters_at_start)[rdpos + j];
-            wr += buffer[wrpos + j] - (counters_at_start)[wrpos + j];
+        for (auto i = 0; i < pmudev->cpumask.size(); i++) {
+            auto cpu = pmudev->cpumask[i];
+            std::string rdname = "RD-S(" + std::to_string(cpu) + ") (MB)";
+            std::string wrname = "WR-S(" + std::to_string(cpu) + ") (MB)";
+            if (counters.find(rdname) == counters.end() || counters.find(wrname) == counters.end()) {
+                counters[rdname] = 0;
+                counters[wrname] = 0;
+            }
+            counters[rdname] += buffer[rdpos + j] - (counters_at_start)[rdpos + j];
+            counters[wrname] += buffer[wrpos + j] - (counters_at_start)[wrpos + j];
         }
-        counters[rdname] = static_cast<float>(rd) * 64 / 1024 / 1024;
-        counters[wrname] = static_cast<float>(wr) * 64 / 1024 / 1024;
     }
+    for (auto it : result)
+        counters[it.first] = static_cast<float>(it.second) * 64 / 1024 / 1024;
 }
