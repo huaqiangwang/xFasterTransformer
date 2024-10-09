@@ -104,6 +104,7 @@ bool SampleSearch::isDone() {
 std::vector<int32_t> SampleSearch::finalize() {
     TimeLine t("dumpFile");
     t.dumpFile("timeline.json");
+    t.deinit();
     return output;
 }
 

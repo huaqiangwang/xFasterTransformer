@@ -341,6 +341,7 @@ std::vector<int32_t> BeamSearch::finalize() {
             = beamScorer.finalize(inputIds, beamNextScores, beamNextTokens, beamNextIndices, padTokenId, eosTokenId);
     TimeLine t("dumpFile");
     t.dumpFile("timeline.json");
+    t.deinit();
     return sequenceOutputs;
 }
 

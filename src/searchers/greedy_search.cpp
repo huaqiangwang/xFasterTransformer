@@ -134,6 +134,7 @@ bool GreedySearch::isDone() {
 std::vector<int32_t> GreedySearch::finalize() {
     TimeLine t("dumpFile");
     t.dumpFile("timeline.json");
+    t.deinit();
     return output;
 }
 

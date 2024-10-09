@@ -40,12 +40,12 @@ public:
         // std::lock_guard<std::mutex> lock(get_lock()); // Prevent start times from coinciding
         if (hasWhitelist && eventWhitelist.find(name) == eventWhitelist.end()) return;
         counters_at_start_ = std::make_shared<std::vector<uint64_t>>(perfMon->GetCounterNum());
+        perfMon->GetCounters(*counters_at_start_.get());
         startEvent(name);
     }
 
     ~TimeLine() {
         release();
-        perfMon->Stop();
     }
 
     void release() {
@@ -58,9 +58,11 @@ public:
         duringTime = std::chrono::duration<float, std::micro>(end - start).count();
 
         // print all content of counter
+        Json::Value jsonPerf;
         for(const auto & pair : counter) {
-            traceEvent[pair.first.c_str()] = pair.second;
+            jsonPerf[pair.first.c_str()] = pair.second;
         }
+        traceEvent["args"]["perf"] = jsonPerf;
 
         traceEvent["ts"] = startTimestamp;
         traceEvent["dur"] = duringTime;
@@ -118,6 +120,10 @@ public:
         pool.reserve(40 * 2000 * 20); // 40 layers * 2000 time * 20 promotes
         perfMon->EnableBW();
         perfMon->Start();
+    }
+
+    static void deinit(){
+        perfMon->Stop();
     }
 
 private:
