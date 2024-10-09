@@ -25,7 +25,7 @@ uint64_t PerfMon::getStamp() {
 /* return the group id, 0 for error
  TODO: Currently only support RAW_EVENT,UNCORE_IMC, need to add support for other types of events
  */
-void PerfMon::Enable(std::vector<std::string>& events) {
+void PerfMon::Enable(std::vector<std::string>& events, bool monitor_single_event) {
     struct perf_event_attr pe = {};
     unsigned int type;
     int fd = 0;
@@ -63,6 +63,7 @@ void PerfMon::Enable(std::vector<std::string>& events) {
                 std::cerr << strerror(errno) << std::endl;
             }
             grpfds_.push_back(fd);
+            counterNum_++;
             if (grpfd_ == -1) {
                 grpfd_ = fd;
                 grpresult_ = std::make_shared<GroupEventResult>();
@@ -89,7 +90,10 @@ void PerfMon::Enable(std::vector<std::string>& events) {
                     }
                     nongrpfds_.push_back(fd);
                     nongrpresult_.push_back(std::make_shared<NonGroupEventResult>());
+                    counterNum_++;
                 }
+                if (monitor_single_event)
+                    break;
             }
         }else{
             std::cerr << "Unsupported event type: " << event << std::endl;
@@ -127,11 +131,6 @@ int PerfMon::Start() {
         auto ret = ioctl(fd, PERF_EVENT_IOC_ENABLE, 0);
         if (ret == -1) std::cerr << "PERF_EVENT_IOC_ENABLE failed, error: " << ret << std::endl;
     }
-    if(counters_at_start_ == nullptr) {
-        counters_at_start_ = std::make_shared<std::vector<uint64_t>>();
-        counters_at_start_->resize(grpfds_.size() + nongrpfds_.size());
-    }
-    GetCounters(*counters_at_start_);
     return 1;
 }
 
@@ -254,15 +253,14 @@ bool PerfMon::getEventTypeConfig(const std::string& event, std::string& dev, uin
     return false;
 }
 
-std::map<int, CPUTYPE> CPUTypeMap = {
-        {85, SKL},
-        {106, ICX},
-        {143, SPR},
-        {207, EMR},
-        {173, GNR}
-};
-
 CPUTYPE PerfMon::getCPUType() {
+    std::map<int, CPUTYPE> CPUTypeMap = {
+            {85, SKL},
+            {106, ICX},
+            {143, SPR},
+            {207, EMR},
+            {173, GNR}
+    };
     std::regex pattern("model\\s*:.*\\s([0-9]+)");
     std::ifstream cpuinfo("/proc/cpuinfo");
     std::string line;
@@ -278,7 +276,7 @@ CPUTYPE PerfMon::getCPUType() {
     return CPUTYPE::UNKNOWN;
 }
 
-void PerfMon::EnableBW() {
+void PerfMon::EnableBW(bool monitor_single_dimm) {
     if (cputype_ == UNKNOWN) {
         std::cerr << "Unknown CPU type!" << std::endl;
         return;
@@ -287,7 +285,7 @@ void PerfMon::EnableBW() {
         std::cerr << "IMC is not supported on this platform" << std::endl;
         return;
     }
-    auto pmudev = pmu_["uncore_imc"];
+    //auto pmudev = pmu_["uncore_imc"];
 
     std::map<CPUTYPE, uint64_t> BWReadMap = {
             {SKL, 0x304},
@@ -306,18 +304,17 @@ void PerfMon::EnableBW() {
     std::string RDEvent = "uncore_imc/r" + std::to_string(configRD) + "/";
     std::string WREvent = "uncore_imc/r" + std::to_string(configWR) + "/";
     std::vector<std::string> events = {RDEvent, WREvent};
-    Enable(events);
+    Enable(events, monitor_single_dimm);
 }
 
-void PerfMon::GetBWCounters(std::map<std::string, float> &counters) {
+void PerfMon::GetBWCounters(std::map<std::string, float> &counters, std::vector<uint64_t> &counters_at_start) {
     auto pmudev = pmu_[std::string("uncore_imc")];
 
-    uint32_t cnum = pmudev->devs.size() * pmudev->cpumask.size() * 2; // 2 for RD+WR
-    std::vector<uint64_t> buffer(cnum);
+    std::vector<uint64_t> buffer(counterNum_);
     GetCounters(buffer);
     for(auto i = 0;i<pmudev->cpumask.size();i++){
-        auto rdpos = i * pmudev->devs.size();
-        auto wrpos = pmudev->cpumask.size() * pmudev->devs.size() * (2+i);
+        auto rdpos = 0;
+        auto wrpos = counterNum_ / 2; //2 due to Rd+Wr events
 
         auto cpu = pmudev->cpumask[i];
         std::string rdname = "RD-cpu" + std::to_string(cpu) + "(MB)";
@@ -325,9 +322,9 @@ void PerfMon::GetBWCounters(std::map<std::string, float> &counters) {
 
         uint64_t rd = 0;
         uint64_t wr = 0;
-        for(auto j = 0; j < pmudev->devs.size(); j++){
-            rd += (buffer[rdpos + j] - (*counters_at_start_)[rdpos + j]);
-            wr += buffer[wrpos + j] - (*counters_at_start_)[wrpos + j];
+        for(auto j = 0; j < counterNum_ / 2; j++){
+            rd += buffer[rdpos + j] - (counters_at_start)[rdpos + j];
+            wr += buffer[wrpos + j] - (counters_at_start)[wrpos + j];
         }
         counters[rdname] = static_cast<float>(rd) * 64 / 1024 / 1024;
         counters[wrname] = static_cast<float>(wr) * 64 / 1024 / 1024;

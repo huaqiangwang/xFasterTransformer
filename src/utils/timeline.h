@@ -39,18 +39,21 @@ public:
     explicit TimeLine(const std::string &name) : duringTime(0) {
         // std::lock_guard<std::mutex> lock(get_lock()); // Prevent start times from coinciding
         if (hasWhitelist && eventWhitelist.find(name) == eventWhitelist.end()) return;
-        perfMon->Start();
+        counters_at_start_ = std::make_shared<std::vector<uint64_t>>(perfMon->GetCounterNum());
         startEvent(name);
     }
 
-    ~TimeLine() { release(); }
+    ~TimeLine() {
+        release();
+        perfMon->Stop();
+    }
 
     void release() {
         if (duringTime >= 0) return;
         std::map<std::string, float> counter;
         end = std::chrono::high_resolution_clock::now();
-        perfMon->GetBWCounters(counter);
-        perfMon->Stop();
+        perfMon->GetBWCounters(counter, *counters_at_start_.get());
+
         startTimestamp = std::chrono::duration_cast<std::chrono::microseconds>(start.time_since_epoch()).count();
         duringTime = std::chrono::duration<float, std::micro>(end - start).count();
 
@@ -114,6 +117,7 @@ public:
         initWhitelist();
         pool.reserve(40 * 2000 * 20); // 40 layers * 2000 time * 20 promotes
         perfMon->EnableBW();
+        perfMon->Start();
     }
 
 private:
@@ -232,6 +236,7 @@ private:
     std::chrono::high_resolution_clock::time_point end;
     int64_t startTimestamp, duringTime;
     Json::Value traceEvent;
+    std::shared_ptr<std::vector<uint64_t>> counters_at_start_;
     static inline std::vector<Json::Value> pool {};
     static inline std::unordered_map<std::string, int32_t> eventWhitelist {};
     static inline bool hasWhitelist = false; // any tag list provided by env XFT_TIMELINE_WHITELIST?

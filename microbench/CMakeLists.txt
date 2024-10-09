@@ -10,5 +10,5 @@ add_executable(bench ${MICROBENCH_SRC})
 
 include_directories(${CMAKE_SOURCE_DIR}/microbench/xed/include)
 
-target_link_libraries(bench PRIVATE -lstdc++ -lstdc++fs xed xfastertransformer)
+target_link_libraries(bench PRIVATE -lstdc++ xed xfastertransformer)
 

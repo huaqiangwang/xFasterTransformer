@@ -57,7 +57,7 @@ typedef struct
 
 class PerfMon {
 public:
-    PerfMon():grpfds_(), nongrpfds_(), pmu_(), cputype_(UNKNOWN), counters_at_start_(nullptr){
+    PerfMon():grpfds_(), nongrpfds_(), pmu_(), cputype_(UNKNOWN), counterNum_(0){
         getPMUList();
         cputype_ = getCPUType();
     }
@@ -67,14 +67,15 @@ public:
         Disable();
     }
 
-    void Enable(std::vector<std::string>& events);
+    void Enable(std::vector<std::string>& events, bool monitor_single_event=true);
     void Disable();
     int Start();
     void Stop() const;
     bool GetCounters(std::vector<uint64_t> & counters) const;
     //BW
-    void EnableBW();
-    void GetBWCounters(std::map<std::string, float> &counters);
+    void EnableBW(bool monitor_single_dimm=true);
+    void GetBWCounters(std::map<std::string, float> &counters, std::vector<uint64_t> &counters_at_start);
+    uint32_t  GetCounterNum() {return counterNum_;}
 private:
     //inline uint64_t getStamp();
     void getPMUList();
@@ -86,11 +87,10 @@ private:
 
     std::vector<int> nongrpfds_;
     std::vector<std::shared_ptr<NonGroupEventResult>> nongrpresult_;
+    uint32_t counterNum_;
     std::unordered_map<std::string, std::shared_ptr<PMUInfo>> pmu_;
 
     CPUTYPE cputype_;
-
-    std::shared_ptr<std::vector<uint64_t>> counters_at_start_;
 };
 
 #endif //DEPENDENCY_PERF_H
