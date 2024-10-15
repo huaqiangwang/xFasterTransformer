@@ -39,6 +39,9 @@
 #include "timeline.h"
 #include "yarn_llama.h"
 
+#include <sched.h>
+
+
 namespace xft {
 enum class GenerationMode { GREEDY_SEARCH, BEAM_SEARCH, SAMPLE };
 
@@ -696,6 +699,39 @@ void Model::config(SearcherConfig &config_, const std::vector<std::vector<int>> 
     if (decoder->getRank() == 0) { configuration = config_; }
     Messenger &messenger = decoder->getMessenger();
     messenger.broadcast((int *)&configuration, sizeof(SearcherConfig) / sizeof(int));
+
+    // Get CPU affinity
+    cpu_set_t cpuset;
+    int num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
+
+    printf("\n----------------------------------\n");
+    // Get the CPU affinity for the calling thread (main thread)
+    if (sched_getaffinity(0, sizeof(cpu_set_t), &cpuset) != 0) {
+        perror("sched_getaffinity");
+    }
+
+    // Print the CPUs on which the thread is allowed to run
+    auto masterCPU = 0;
+    for (int i = 0; i < num_cpus; i++) {
+        if (CPU_ISSET(i, &cpuset)) {
+            masterCPU = i;
+        }
+    }
+
+#pragma omp parallel
+    {
+        int tid = omp_get_thread_num();
+        // Only the master thread (thread 0) is pinned, other threads are free
+        if (tid == 0) {
+            cpu_set_t cpuset;
+            CPU_ZERO(&cpuset);
+            CPU_SET(masterCPU, &cpuset);  // Pin main thread to CPU 0
+
+            if (sched_setaffinity(0, sizeof(cpu_set_t), &cpuset) != 0) { perror("sched_setaffinity"); }
+        }
+    }
+
+    printf("Master CPU: %d\n", masterCPU);
 
     // Slaves get exit flags and exit directly
     if (decoder->getRank() > 0 && configuration.numBeams == 0) { exit(0); }
